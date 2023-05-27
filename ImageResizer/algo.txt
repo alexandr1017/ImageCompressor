@@ -1,0 +1,71 @@
+Для разбиения обработки массива Files [] по числу ядер процессора Java можно использовать следующие шаги:
+
+Получить число ядер процессора с помощью метода Runtime.getRuntime().availableProcessors() и сохранить его в переменную, например, cores.
+Создать пул потоков с помощью класса ExecutorService из пакета java.util.concurrent и передать ему число ядер в качестве параметра, например,
+ pool = Executors.newFixedThreadPool(cores).
+Разделить массив Files [] на равные части по числу ядер, например, с помощью метода Arrays.copyOfRange() из класса Arrays из пакета java.util.
+ Каждая часть будет представлять собой подмассив Files [], например, part1 = Arrays.copyOfRange(files, 0, files.length / cores) и так далее.
+Для каждой части массива создать задачу, которая будет обрабатывать файлы в этом подмассиве, например, с помощью лямбда-выражения или объекта,
+ реализующего интерфейс Runnable. В задаче можно использовать цикл for или расширенный цикл for для перебора файлов в подмассиве и выполнения необходимых действий над ними.
+Отправить задачи в пул потоков с помощью метода pool.submit(), передавая ему задачу в качестве параметра. Пул потоков распределит задачи между доступными потоками
+ и запустит их параллельно.
+Завершить работу пула потоков с помощью методов pool.shutdown() и pool.awaitTermination(), которые ожидают завершения всех задач в пуле.
+
+Дальше код для обработки файлов выглядит так:
+
+```java
+
+public class FileProcessor {
+
+    public static void main(String[] args) {
+        // получаем массив файлов из текущего каталога
+        File[] files = new File(".").listFiles();
+        // получаем число ядер процессора
+        int cores = Runtime.getRuntime().availableProcessors();
+        // создаем пул потоков по числу ядер
+        ExecutorService pool = Executors.newFixedThreadPool(cores);
+        // разбиваем массив файлов на части по числу ядер
+        for (int i = 0; i < cores; i++) {
+            // определяем начальный и конечный индексы для каждой части
+            int start = i * files.length / cores;
+            int end = (i + 1) * files.length / cores;
+            if (i == cores - 1) {
+                end = files.length; // последняя часть может быть больше
+            }
+            // получаем подмассив файлов для текущей части
+            File[] part = Arrays.copyOfRange(files, start, end);
+            // создаем задачу для обработки подмассива файлов
+            Runnable task = () -> {
+                for (File file : part) {
+                    try {
+                        // читаем содержимое файла в строку
+                        String content = new String(Files.readAllBytes(Paths.get(file.getPath())));
+                        // переводим все буквы в верхний регистр
+                        content = content.toUpperCase();
+                        // записываем обратно в файл
+                        Files.write(Paths.get(file.getPath()), content.getBytes());
+                        // выводим сообщение о завершении обработки файла
+                        System.out.println("File " + file.getName() + " processed by thread " + Thread.currentThread().getName());
+                    } catch (IOException e) {
+                        // обрабатываем исключение ввода-вывода
+                        e.printStackTrace();
+                    }
+                }
+            };
+            // отправляем задачу в пул потоков
+            pool.submit(task);
+        }
+        // завершаем работу пула потоков
+        pool.shutdown();
+        try {
+            // ждем завершения всех задач в пуле
+            pool.awaitTermination(1, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            // обрабатываем исключение прерывания
+            e.printStackTrace();
+        }
+        // выводим сообщение о завершении работы программы
+        System.out.println("Main thread finished");
+    }
+}
+```
